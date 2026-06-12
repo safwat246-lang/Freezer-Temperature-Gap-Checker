@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🌡️ Freezer Temperature Gap Checker — Suez DC</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #2c3e50; }
+
+  header {
+    background: #1a3c5e;
+    color: white;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header span { font-size: 28px; }
+
+  .container { max-width: 900px; margin: 32px auto; padding: 0 20px; }
+
+  .card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; color: #7f8c8d; text-transform: uppercase;
+             letter-spacing: 0.5px; margin-bottom: 14px; }
+
+  .instructions {
+    background: #eaf4fb;
+    border-left: 4px solid #2d5f8a;
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: #1a3c5e;
+    margin-bottom: 18px;
+  }
+  .instructions strong { color: #1a3c5e; }
+
+  textarea {
+    width: 100%; height: 180px;
+    border: 1.5px solid #dce3ea; border-radius: 8px;
+    padding: 12px; font-family: monospace; font-size: 12.5px;
+    resize: vertical; outline: none; color: #2c3e50;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: #2d5f8a; }
+
+  .btn-row { display: flex; gap: 12px; margin-top: 14px; }
+  button {
+    padding: 11px 28px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;
+  }
+  #runBtn  { background: #1a3c5e; color: white; }
+  #runBtn:hover  { background: #2d5f8a; }
+  #clearBtn { background: #ecf0f1; color: #7f8c8d; }
+  #clearBtn:hover { background: #dfe6e9; }
+
+  #status { margin-top: 12px; font-size: 13px; color: #7f8c8d; min-height: 18px; }
+
+  /* Overview grid */
+  .overview-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .ov-card {
+    background: #f8fafc; border-radius: 8px;
+    padding: 16px 18px; border: 1px solid #e4eaf0;
+  }
+  .ov-card .label { font-size: 11.5px; color: #95a5a6; text-transform: uppercase;
+                    letter-spacing: 0.4px; margin-bottom: 4px; }
+  .ov-card .value { font-size: 22px; font-weight: 700; color: #1a3c5e; }
+  .ov-card.alert .value { color: #c0392b; }
+  .ov-card.ok    .value { color: #1e8449; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { background: #2d5f8a; color: white; padding: 10px 12px; text-align: left;
+       font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f4f8; }
+  tr:last-child td { border-bottom: none; }
+  .row-ok   { background: #f0faf4; }
+  .row-warn { background: #fffbf0; }
+  .row-gap  { background: #fff5f5; }
+  .row-gap-alt { background: #fff0f0; }
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-ok   { background: #d5f5e3; color: #1e8449; }
+  .badge-warn { background: #fdebd0; color: #d35400; }
+
+  #result { display: none; }
+
+  .all-clear {
+    background: #eafaf1; border: 1.5px solid #a9dfbf;
+    border-radius: 8px; padding: 18px 22px;
+    color: #1e8449; font-size: 15px; font-weight: 600; text-align: center;
+  }
+
+  .section-title {
+    font-size: 13px; font-weight: 700; color: #7f8c8d;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 12px; margin-top: 4px;
+  }
+
+  footer {
+    text-align: center; font-size: 12px; color: #95a5a6;
+    padding: 10px 0 30px;
+  }
+
+  @media print {
+    .card:first-of-type, .btn-row, #status, footer { display: none; }
+    body { background: white; }
+    .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span>🌡️</span>
+  <h1>Freezer Temperature Gap Checker — Suez DC</h1>
+</header>
+
+<div class="container">
+
+  <!-- Input card -->
+  <div class="card">
+    <h2>Paste Exported Data</h2>
+    <div class="instructions">
+      <strong>How to use:</strong><br>
+      1. Export data from the freezer monitoring app to Excel<br>
+      2. Select all cells (Ctrl+A), copy (Ctrl+C)<br>
+      3. Paste below (Ctrl+V) — the tool expects columns: <strong>Date, Time, Value</strong><br>
+      4. Click <strong>Run Gap Check</strong><br>
+      <em>Everything runs in your browser — no data is uploaded anywhere.</em>
+    </div>
+    <textarea id="csvInput" placeholder="Paste your exported data here...&#10;Example:&#10;Date,Time,Value&#10;09-Jun-2026,18:56,-34.9°C&#10;09-Jun-2026,18:51,-35.0°C"></textarea>
+    <div class="btn-row">
+      <button id="runBtn" onclick="runCheck()">▶ Run Gap Check</button>
+      <button id="clearBtn" onclick="clearAll()">✕ Clear</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <!-- Result -->
+  <div id="result">
+
+    <!-- Overview -->
+    <div class="card">
+      <h2>Overview</h2>
+      <div class="overview-grid">
+        <div class="ov-card">
+          <div class="label">Period</div>
+          <div class="value" id="ov-period" style="font-size:14px; padding-top:4px;"></div>
+        </div>
+        <div class="ov-card">
+          <div class="label">Total Readings</div>
+          <div class="value" id="ov-readings"></div>
+        </div>
+        <div class="ov-card" id="ov-gaps-card">
+          <div class="label">Gaps Detected</div>
+          <div class="value" id="ov-gaps"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily Summary -->
+    <div class="card">
+      <div class="section-title">Daily Summary</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Readings</th><th>Min °C</th><th>Max °C</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="dayTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Gap Details -->
+    <div class="card" id="gapCard">
+      <div class="section-title">Gap Details</div>
+      <div id="gapContent"></div>
+    </div>
+
+    <!-- Skipped rows (parse errors) -->
+    <div class="card" id="errorCard" style="display:none; border: 1.5px solid #e6b0aa;">
+      <div class="section-title" style="color:#c0392b;">⚠️ Skipped Rows — NOT Included in This Report</div>
+      <div id="errorContent" style="font-family:monospace; font-size:12.5px; color:#7f8c8d; line-height:1.8;"></div>
+    </div>
+
+  </div>
+</div>
+
+<footer>Cold Chain QA Tool · runs 100% offline in your browser · v2.0</footer>
+
+<script>
+// ---------- CONFIGURATION ----------
+const EXPECTED_INTERVAL_MINUTES = 5;
+const GAP_THRESHOLD_MINUTES     = 6; // anything above this is flagged
+// -----------------------------------
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function fmtDateTime(dt) {
+  return pad2(dt.getDate()) + "-" + MONTHS[dt.getMonth()] + "-" + dt.getFullYear()
+       + " " + pad2(dt.getHours()) + ":" + pad2(dt.getMinutes());
+}
+
+function fmtDate(dt) {
+  return pad2(dt.getDate()) + "-" + MONTHS[dt.getMonth()] + "-" + dt.getFullYear();
+}
+
+// ============================================================
+//  GAP CHECK — same logic as the Apps Script version, but
+//  running entirely client-side. No data leaves this page.
+// ============================================================
+function processData(csvText) {
+  const lines    = csvText.trim().split(/\r?\n/).filter(l => l.trim() !== "");
+  const readings = [];
+  const errors   = [];
+
+  // Skip header row if present
+  const startIndex = lines[0].toLowerCase().includes("date") ? 1 : 0;
+
+  lines.slice(startIndex).forEach((line, i) => {
+    const cols    = line.includes("\t") ? line.split("\t") : line.split(",");
+    if (cols.length < 2) return;
+    const rawDate = cols[0].trim();
+    const rawTime = cols[1].trim();
+    const rawTemp = cols[2] ? cols[2].trim() : "";
+
+    let dt;
+    try {
+      const monthMap = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,
+                        jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+
+      // Parse date: "08-Jun-2026", "08/Jun/2026", "08 Jun 2026"
+      const dmyMatch = rawDate.match(/(\d{1,2})[-\/\s]([A-Za-z]+)[-\/\s](\d{4})/);
+      if (!dmyMatch) throw new Error("unrecognised date format");
+      const day   = parseInt(dmyMatch[1], 10);
+      const month = monthMap[dmyMatch[2].toLowerCase().substring(0,3)];
+      const year  = parseInt(dmyMatch[3], 10);
+      if (month === undefined) throw new Error("unrecognised month");
+
+      // Parse time: handles "18:56", "18:56:00", "9:56", "6:56 PM", "6:56:00 PM"
+      let hours, mins;
+      const ampm = rawTime.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)/i);
+      if (ampm) {
+        hours = parseInt(ampm[1], 10);
+        mins  = parseInt(ampm[2], 10);
+        const p = ampm[3].toUpperCase();
+        if (p === "PM" && hours !== 12) hours += 12;
+        if (p === "AM" && hours === 12) hours = 0;
+      } else {
+        const parts = rawTime.split(":");
+        hours = parseInt(parts[0], 10);
+        mins  = parseInt(parts[1], 10);
+      }
+      if (isNaN(hours) || isNaN(mins) || hours > 23 || mins > 59) throw new Error("unrecognised time");
+
+      dt = new Date(year, month, day, hours, mins, 0, 0);
+      if (isNaN(dt.getTime())) throw new Error("invalid date result");
+    } catch(e) {
+      errors.push("Row " + (startIndex + i + 1) + ": Could not parse \"" + rawDate + " " + rawTime + "\"");
+      return;
+    }
+
+    const tempStr = String(rawTemp).replace(/°C/gi, "").trim();
+    const temp    = parseFloat(tempStr);
+    readings.push({ dt, temp: isNaN(temp) ? null : temp });
+  });
+
+  if (readings.length === 0) {
+    return { error: "No valid readings found. Please check your data format." };
+  }
+
+  readings.sort((a, b) => a.dt - b.dt);
+
+  // Find gaps
+  const gaps = [];
+  for (let i = 1; i < readings.length; i++) {
+    const diffMin = (readings[i].dt - readings[i-1].dt) / 60000;
+    if (diffMin > GAP_THRESHOLD_MINUTES) {
+      gaps.push({
+        from   : fmtDateTime(readings[i-1].dt),
+        to     : fmtDateTime(readings[i].dt),
+        gapMin : Math.round(diffMin),
+        missed : Math.round(diffMin / EXPECTED_INTERVAL_MINUTES) - 1
+      });
+    }
+  }
+
+  // Per-day summary
+  const dayMap = {};
+  readings.forEach(r => {
+    const key = fmtDate(r.dt);
+    if (!dayMap[key]) dayMap[key] = { count: 0, temps: [], sortKey: new Date(r.dt.getFullYear(), r.dt.getMonth(), r.dt.getDate()).getTime() };
+    dayMap[key].count++;
+    if (r.temp !== null) dayMap[key].temps.push(r.temp);
+  });
+
+  const days = Object.keys(dayMap)
+    .sort((a, b) => dayMap[a].sortKey - dayMap[b].sortKey)
+    .map(k => {
+      const d       = dayMap[k];
+      const dayGaps = gaps.filter(g => g.from.startsWith(k));
+      return {
+        date    : k,
+        readings: d.count,
+        minTemp : d.temps.length ? Math.min(...d.temps).toFixed(1) : "—",
+        maxTemp : d.temps.length ? Math.max(...d.temps).toFixed(1) : "—",
+        gaps    : dayGaps.length
+      };
+    });
+
+  const firstDt = readings[0].dt;
+  const lastDt  = readings[readings.length - 1].dt;
+
+  return {
+    totalReadings : readings.length,
+    spanHours     : ((lastDt - firstDt) / 3600000).toFixed(1),
+    totalDays     : days.length,
+    periodStart   : fmtDateTime(firstDt),
+    periodEnd     : fmtDateTime(lastDt),
+    gaps,
+    days,
+    errors
+  };
+}
+
+// ============================================================
+//  UI
+// ============================================================
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function runCheck() {
+  const raw = document.getElementById("csvInput").value.trim();
+  if (!raw) { setStatus("⚠️ Please paste your data first."); return; }
+
+  setStatus("");
+  const data = processData(raw);
+
+  if (data.error) {
+    setStatus("❌ " + data.error);
+    document.getElementById("result").style.display = "none";
+    return;
+  }
+
+  // Overview
+  document.getElementById("ov-period").textContent   = data.periodStart + " → " + data.periodEnd;
+  document.getElementById("ov-readings").textContent = data.totalReadings;
+  document.getElementById("ov-gaps").textContent     = data.gaps.length;
+
+  const gapsCard = document.getElementById("ov-gaps-card");
+  gapsCard.classList.remove("alert", "ok");
+  gapsCard.classList.add(data.gaps.length > 0 ? "alert" : "ok");
+
+  // Skipped rows — make parse failures impossible to miss
+  const errCard    = document.getElementById("errorCard");
+  const errContent = document.getElementById("errorContent");
+  const errs = data.errors || [];
+  if (errs.length > 0) {
+    let html = '<div style="font-family:\'Segoe UI\',sans-serif; color:#c0392b; font-weight:600; margin-bottom:10px;">'
+             + errs.length + ' row(s) could not be parsed. The numbers above EXCLUDE these rows — '
+             + 'gaps may be reported where data actually exists. Fix the data format and re-run.</div>';
+    html += errs.slice(0, 30).map(escHtml).join("<br>");
+    if (errs.length > 30) html += '<br>…and ' + (errs.length - 30) + ' more row(s)';
+    errContent.innerHTML = html;
+    errCard.style.display = "block";
+    setStatus("⚠️ " + errs.length + " row(s) skipped — see 'Skipped Rows' at the bottom of the report.");
+  } else {
+    errCard.style.display = "none";
+  }
+
+  // Daily summary
+  const tbody = document.getElementById("dayTableBody");
+  tbody.innerHTML = "";
+  data.days.forEach(d => {
+    const ok  = d.gaps === 0;
+    const cls = ok ? "row-ok" : "row-warn";
+    const badge = ok
+      ? '<span class="badge badge-ok">✅ Complete</span>'
+      : '<span class="badge badge-warn">⚠️ ' + d.gaps + ' gap(s)</span>';
+    tbody.innerHTML += '<tr class="' + cls + '">'
+      + '<td>' + escHtml(d.date) + '</td>'
+      + '<td>' + d.readings + '</td>'
+      + '<td>' + escHtml(d.minTemp) + '°C</td>'
+      + '<td>' + escHtml(d.maxTemp) + '°C</td>'
+      + '<td>' + badge + '</td></tr>';
+  });
+
+  // Gap details
+  const gapContent = document.getElementById("gapContent");
+  if (data.gaps.length === 0) {
+    gapContent.innerHTML = '<div class="all-clear">✅ No gaps detected — all intervals are within the expected 5-minute window.</div>';
+  } else {
+    let tbl = '<table><thead><tr><th>#</th><th>Gap From</th><th>Gap To</th>'
+            + '<th>Gap (min)</th><th>Missed Readings</th></tr></thead><tbody>';
+    data.gaps.forEach((g, i) => {
+      const cls = i % 2 === 0 ? "row-gap" : "row-gap-alt";
+      tbl += '<tr class="' + cls + '">'
+        + '<td>' + (i + 1) + '</td>'
+        + '<td>' + escHtml(g.from) + '</td>'
+        + '<td>' + escHtml(g.to) + '</td>'
+        + '<td>' + g.gapMin + '</td>'
+        + '<td>' + g.missed + '</td></tr>';
+    });
+    tbl += '</tbody></table>';
+    gapContent.innerHTML = tbl;
+  }
+
+  document.getElementById("result").style.display = "block";
+}
+
+function clearAll() {
+  document.getElementById("csvInput").value = "";
+  document.getElementById("result").style.display = "none";
+  setStatus("");
+}
+
+function setStatus(msg) {
+  document.getElementById("status").textContent = msg;
+}
+</script>
+</body>
+</html>
