@@ -52,6 +52,19 @@
   }
   textarea:focus { border-color: #2d5f8a; }
 
+  .interval-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    margin-top: 14px; font-size: 13.5px; color: #2c3e50;
+  }
+  .interval-row label { font-weight: 600; }
+  .interval-row input {
+    width: 90px; padding: 8px 10px; font-size: 14px;
+    border: 1.5px solid #dce3ea; border-radius: 8px; outline: none;
+    color: #2c3e50; transition: border-color 0.2s;
+  }
+  .interval-row input:focus { border-color: #2d5f8a; }
+  .interval-hint { font-size: 12px; color: #95a5a6; }
+
   .btn-row { display: flex; gap: 12px; margin-top: 14px; }
   button {
     padding: 11px 28px; border: none; border-radius: 8px;
@@ -138,10 +151,15 @@
       1. Export data from the freezer monitoring app to Excel<br>
       2. Select all cells (Ctrl+A), copy (Ctrl+C)<br>
       3. Paste below (Ctrl+V) — the tool expects columns: <strong>Date, Time, Value</strong><br>
-      4. Click <strong>Run Gap Check</strong><br>
-      <em>Everything runs in your browser — no data is uploaded anywhere.</em>
+      4. Set the <strong>expected interval</strong> if it isn't 5 minutes (otherwise leave it blank)<br>
+      5. Click <strong>Run Gap Check</strong>
     </div>
     <textarea id="csvInput" placeholder="Paste your exported data here...&#10;Example:&#10;Date,Time,Value&#10;09-Jun-2026,18:56,-34.9°C&#10;09-Jun-2026,18:51,-35.0°C"></textarea>
+    <div class="interval-row">
+      <label for="intervalInput">Expected interval between readings (minutes):</label>
+      <input type="number" id="intervalInput" min="1" step="1" placeholder="5">
+      <span class="interval-hint">Leave blank for the default of 5 minutes.</span>
+    </div>
     <div class="btn-row">
       <button id="runBtn" onclick="runCheck()">▶ Run Gap Check</button>
       <button id="clearBtn" onclick="clearAll()">✕ Clear</button>
@@ -177,7 +195,7 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th><th>Readings</th><th>Min °C</th><th>Max °C</th><th>Status</th>
+            <th>Date</th><th>Readings</th><th>Min °C</th><th>Avg °C</th><th>Max °C</th><th>Status</th>
           </tr>
         </thead>
         <tbody id="dayTableBody"></tbody>
@@ -199,12 +217,11 @@
   </div>
 </div>
 
-<footer>Cold Chain QA Tool · runs 100% offline in your browser · v2.0</footer>
+<footer>QA Tool · runs 100% offline in your browser · v1.0</footer>
 
 <script>
 // ---------- CONFIGURATION ----------
-const EXPECTED_INTERVAL_MINUTES = 5;
-const GAP_THRESHOLD_MINUTES     = 6; // anything above this is flagged
+const DEFAULT_INTERVAL_MINUTES = 5; // used when the interval box is left blank
 // -----------------------------------
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -224,7 +241,7 @@ function fmtDate(dt) {
 //  GAP CHECK — same logic as the Apps Script version, but
 //  running entirely client-side. No data leaves this page.
 // ============================================================
-function processData(csvText) {
+function processData(csvText, intervalMin) {
   const lines    = csvText.trim().split(/\r?\n/).filter(l => l.trim() !== "");
   const readings = [];
   const errors   = [];
@@ -290,12 +307,12 @@ function processData(csvText) {
   const gaps = [];
   for (let i = 1; i < readings.length; i++) {
     const diffMin = (readings[i].dt - readings[i-1].dt) / 60000;
-    if (diffMin > GAP_THRESHOLD_MINUTES) {
+    if (diffMin > intervalMin) {                          // strict: any spacing above N is a gap
       gaps.push({
         from   : fmtDateTime(readings[i-1].dt),
         to     : fmtDateTime(readings[i].dt),
         gapMin : Math.round(diffMin),
-        missed : Math.round(diffMin / EXPECTED_INTERVAL_MINUTES) - 1
+        missed : Math.ceil(diffMin / intervalMin) - 1      // always >= 1 for a flagged gap
       });
     }
   }
@@ -318,6 +335,7 @@ function processData(csvText) {
         date    : k,
         readings: d.count,
         minTemp : d.temps.length ? Math.min(...d.temps).toFixed(1) : "—",
+        avgTemp : d.temps.length ? (d.temps.reduce((s, t) => s + t, 0) / d.temps.length).toFixed(1) : "—",
         maxTemp : d.temps.length ? Math.max(...d.temps).toFixed(1) : "—",
         gaps    : dayGaps.length
       };
@@ -349,8 +367,20 @@ function runCheck() {
   const raw = document.getElementById("csvInput").value.trim();
   if (!raw) { setStatus("⚠️ Please paste your data first."); return; }
 
+  // Resolve the expected interval: blank -> default 5, otherwise a positive whole number of minutes.
+  const intervalRaw = document.getElementById("intervalInput").value.trim();
+  let intervalMin = DEFAULT_INTERVAL_MINUTES;
+  if (intervalRaw !== "") {
+    if (!/^\d+$/.test(intervalRaw) || parseInt(intervalRaw, 10) < 1) {
+      setStatus("❌ Interval must be a positive whole number of minutes (e.g. 5, 10, 15), or left blank for the default of 5.");
+      document.getElementById("result").style.display = "none";
+      return;
+    }
+    intervalMin = parseInt(intervalRaw, 10);
+  }
+
   setStatus("");
-  const data = processData(raw);
+  const data = processData(raw, intervalMin);
 
   if (data.error) {
     setStatus("❌ " + data.error);
@@ -397,6 +427,7 @@ function runCheck() {
       + '<td>' + escHtml(d.date) + '</td>'
       + '<td>' + d.readings + '</td>'
       + '<td>' + escHtml(d.minTemp) + '°C</td>'
+      + '<td>' + escHtml(d.avgTemp) + '°C</td>'
       + '<td>' + escHtml(d.maxTemp) + '°C</td>'
       + '<td>' + badge + '</td></tr>';
   });
@@ -404,7 +435,7 @@ function runCheck() {
   // Gap details
   const gapContent = document.getElementById("gapContent");
   if (data.gaps.length === 0) {
-    gapContent.innerHTML = '<div class="all-clear">✅ No gaps detected — all intervals are within the expected 5-minute window.</div>';
+    gapContent.innerHTML = '<div class="all-clear">✅ No gaps detected — all intervals are within the expected ' + intervalMin + '-minute window.</div>';
   } else {
     let tbl = '<table><thead><tr><th>#</th><th>Gap From</th><th>Gap To</th>'
             + '<th>Gap (min)</th><th>Missed Readings</th></tr></thead><tbody>';
